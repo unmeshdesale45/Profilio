@@ -5,9 +5,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import nltk
 
 # --- NLTK Data Download ---
-# This simplified function directly downloads the necessary NLTK data,
-# which is the most reliable method for Streamlit Cloud.
+# Simplified download function for Streamlit Cloud
 def download_nltk_data():
+    """
+    Directly downloads the necessary NLTK data. This is the most reliable
+    method for resolving persistent errors on Streamlit Cloud.
+    """
     try:
         nltk.data.find('tokenizers/punkt')
     except (OSError, LookupError):
@@ -41,7 +44,6 @@ def get_common_keywords(job_desc_text, resume_text):
     vec1 = vectorizer.transform([job_desc_text]).toarray()
     vec2 = vectorizer.transform([resume_text]).toarray()
     
-    # Find indices where both vectors have a non-zero value
     common_indices = (vec1 > 0) & (vec2 > 0)
     common_words = feature_names[common_indices[0]]
     
@@ -182,3 +184,4 @@ if st.session_state.results_df is not None:
 
 else:
     st.info("Please provide a job description and upload resumes in the sidebar to begin analysis.")
+

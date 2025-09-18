@@ -1,5 +1,6 @@
 import re
 import nltk
+import os
 import PyPDF2
 import docx
 from nltk.corpus import stopwords
@@ -8,7 +9,16 @@ import streamlit as st
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
-# This function must be named exactly 'extract_text_from_pdf'
+# --- NLTK Data Path Configuration ---
+# Add the local nltk_data directory to NLTK's search path.
+# This is the definitive fix for the deployment error.
+nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
+if nltk_data_path not in nltk.data.path:
+    nltk.data.path.append(nltk_data_path)
+
+
+# --- TEXT EXTRACTION FUNCTIONS ---
+
 def extract_text_from_pdf(file):
     """Extracts text from a PDF file."""
     pdf_reader = PyPDF2.PdfReader(file)
@@ -17,7 +27,6 @@ def extract_text_from_pdf(file):
         text += page.extract_text()
     return text
 
-# This function must be named exactly 'extract_text_from_docx'
 def extract_text_from_docx(file):
     """Extracts text from a DOCX file."""
     doc = docx.Document(file)
@@ -40,27 +49,30 @@ def preprocess_text(text):
     # Join tokens back into a string
     return " ".join(filtered_tokens)
 
-#to extract mail from resume
+
+# --- EMAIL RELATED FUNCTIONS ---
+
 def extract_email_from_text(text):
     """
-    Finds the first email address in a block of text.
+    Finds the first email address in a block of text using regex.
     """
-    
     email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     match = re.search(email_pattern, text)
     if match:
         return match.group(0)
     return None
 
-
-
 def send_invitation_email(recipient_email, candidate_name, job_title):
     """
     Sends a personalized interview invitation email using SendGrid.
     """
-    # Load credentials from st.secrets
-    api_key = st.secrets["SENDGRID_API_KEY"]
-    sender_email = st.secrets["SENDER_EMAIL"]
+    # Load credentials securely from st.secrets
+    try:
+        api_key = st.secrets["SENDGRID_API_KEY"]
+        sender_email = st.secrets["SENDER_EMAIL"]
+    except KeyError:
+        st.error("Email credentials are not set up correctly in Streamlit Secrets.")
+        return False
 
     message = Mail(
         from_email=sender_email,
@@ -84,5 +96,5 @@ def send_invitation_email(recipient_email, candidate_name, job_title):
             st.error(f"Failed to send email. Status code: {response.status_code}")
             return False
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"An error occurred while sending the email: {e}")
         return False
