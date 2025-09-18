@@ -8,7 +8,13 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 # This function checks if the NLTK data is present and downloads it if not.
 
 def download_nltk_data():
-    import nltk
+    try:
+        _create_unverified_https_context = ssl._create_unverified_context
+    except AttributeError:
+        pass
+    else:
+        ssl._create_default_https_context = _create_unverified_https_context
+
     try:
         nltk.data.find('tokenizers/punkt')
     except nltk.downloader.DownloadError:
@@ -17,7 +23,6 @@ def download_nltk_data():
         nltk.data.find('corpora/stopwords')
     except nltk.downloader.DownloadError:
         nltk.download('stopwords')
-
 download_nltk_data()
 
 # Import your existing utility and matcher functions
