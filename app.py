@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
-import nltk
+
 
 # --- NLTK Data Download ---
 # This function checks if the NLTK data is present and downloads it if not.
 
 def download_nltk_data():
+    import nltk
     try:
         nltk.data.find('tokenizers/punkt')
     except nltk.downloader.DownloadError:
