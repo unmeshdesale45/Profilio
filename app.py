@@ -73,7 +73,7 @@ with st.sidebar:
     analyze_button = st.button("Analyze Resumes", type="primary")
     st.divider()
     st.markdown(
-        '<h6>Made with &nbsp<img src="https://streamlit.io/images/brand/streamlit-mark-color.png" alt="Streamlit logo" height="16">&nbsp by <a href="https://github.com/unmeshdesale45">Yunmeshdesale45</a></h6>',
+        '<h6>Made with &nbsp<img src="https://streamlit.io/images/brand/streamlit-mark-color.png" alt="Streamlit logo" height="16">&nbsp by <a href="https://github.com/unmeshdesale45">unmeshdesale45</a></h6>',
         unsafe_allow_html=True,
     )
 
