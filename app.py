@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
-
+import nltk
+import ssl
 
 # --- NLTK Data Download ---
 # This function checks if the NLTK data is present and downloads it if not.
-
 def download_nltk_data():
     try:
         _create_unverified_https_context = ssl._create_unverified_context
@@ -23,6 +23,7 @@ def download_nltk_data():
         nltk.data.find('corpora/stopwords')
     except nltk.downloader.DownloadError:
         nltk.download('stopwords')
+
 download_nltk_data()
 
 # Import your existing utility and matcher functions
