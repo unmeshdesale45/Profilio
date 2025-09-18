@@ -7,7 +7,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from utils import extract_text_from_pdf, extract_text_from_docx
 from matcher import calculate_similarity
 
-# --- NEW HELPER FUNCTIONS for Side-by-Side View ---
+# --- NEW: Import the new functions for email functionality ---
+from utils import extract_email_from_text, send_invitation_email
+
+
+# --- HELPER FUNCTIONS for Side-by-Side View ---
 
 def get_common_keywords(job_desc_text, resume_text):
     """
@@ -15,20 +19,14 @@ def get_common_keywords(job_desc_text, resume_text):
     Returns a set of common words.
     """
     vectorizer = TfidfVectorizer(stop_words='english')
-    # Create a corpus and fit the vectorizer
     corpus = [job_desc_text, resume_text]
     vectorizer.fit(corpus)
-    # Get the feature names (vocabulary) for each document
     feature_names = vectorizer.get_feature_names_out()
     
-    # Get the TF-IDF vectors for both texts
     vec1 = vectorizer.transform([job_desc_text]).toarray()
     vec2 = vectorizer.transform([resume_text]).toarray()
     
-    # Find indices where both vectors have a non-zero value
     common_indices = (vec1 > 0) & (vec2 > 0)
-    
-    # Get the actual words using the common indices
     common_words = feature_names[common_indices[0]]
     
     return set(common_words)
@@ -40,7 +38,6 @@ def highlight_text(text, keywords):
     Returns the highlighted text as an HTML string.
     """
     for keyword in keywords:
-        # Use regex for case-insensitive replacement and to avoid highlighting parts of words
         text = re.sub(r'\b({})\b'.format(re.escape(keyword)), r'<mark>\1</mark>', text, flags=re.IGNORECASE)
     return text
 
@@ -67,11 +64,16 @@ with st.sidebar:
     job_description = st.text_area("Paste the job description here", height=250)
     
     st.header("2. Upload Resumes")
-    # MODIFIED: File uploader now accepts multiple files
     uploaded_resumes = st.file_uploader("Upload resumes (PDF or DOCX)", type=["pdf", "docx"], accept_multiple_files=True)
     
     analyze_button = st.button("Analyze Resumes", type="primary")
+    st.divider()
+    st.markdown(
+        '<h6>Made with &nbsp<img src="https://streamlit.io/images/brand/streamlit-mark-color.png" alt="Streamlit logo" height="16">&nbsp by <a href="https://github.com/unmeshdesale45">unmeshdesale45</a></h6>',
+        unsafe_allow_html=True,
+    )
 
+# --- MODIFIED: Analysis loop in app.py to include email extraction ---
 if analyze_button and job_description and uploaded_resumes:
     with st.spinner("Analyzing all resumes... This may take a moment."):
         results = []
@@ -85,31 +87,32 @@ if analyze_button and job_description and uploaded_resumes:
                 
                 similarity_score = calculate_similarity(resume_text, job_description)
                 
+                # NEW: Extract email
+                email = extract_email_from_text(resume_text)
+                
                 results.append({
                     "Filename": resume_file.name,
                     "Score (%)": f"{similarity_score:.2f}",
-                    "Full Resume Text": resume_text  # Store full text for later
+                    "Email": email, # Add the extracted email to results
+                    "Full Resume Text": resume_text
                 })
             except Exception as e:
                 st.error(f"Error processing {resume_file.name}: {e}")
         
-        # Convert results to a DataFrame and sort
         results_df = pd.DataFrame(results)
         results_df['Score (%)'] = pd.to_numeric(results_df['Score (%)'])
         results_df = results_df.sort_values(by="Score (%)", ascending=False).reset_index(drop=True)
         
-        # Store the DataFrame in session state
         st.session_state.results_df = results_df
 
-# --- Display Results and Comparison View ---
-
+# --- MODIFIED: Display Results and Add Emailing Feature ---
 if st.session_state.results_df is not None:
     st.header("📈 Analysis Results")
     st.markdown("Here are the resumes ranked by their match score.")
     
-    # Display the ranked list, hiding the full text column for a cleaner view
+    # Display the ranked list, now including the Email column
     st.dataframe(
-        st.session_state.results_df[['Filename', 'Score (%)']],
+        st.session_state.results_df[['Filename', 'Score (%)', 'Email']],
         use_container_width=True,
         hide_index=True
     )
@@ -118,29 +121,55 @@ if st.session_state.results_df is not None:
     
     st.header("🔍 Side-by-Side Comparison")
     
-    # Dropdown to select a candidate from the ranked list
     candidate_options = st.session_state.results_df['Filename'].tolist()
     selected_candidate = st.selectbox("Choose a candidate to compare:", options=candidate_options)
     
     if selected_candidate:
-        # Get the resume text for the selected candidate
         resume_text = st.session_state.results_df[st.session_state.results_df['Filename'] == selected_candidate].iloc[0]['Full Resume Text']
-        
-        # Find and highlight common keywords
         common_keywords = get_common_keywords(job_description, resume_text)
         highlighted_jd = highlight_text(job_description, common_keywords)
         highlighted_resume = highlight_text(resume_text, common_keywords)
         
-        # Create the two-column layout
         col1, col2 = st.columns(2)
-        
         with col1:
             st.subheader("Job Description")
-            # Use markdown with unsafe_allow_html to render the highlights
             st.markdown(f'<div style="height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">{highlighted_jd}</div>', unsafe_allow_html=True)
-
         with col2:
             st.subheader(f"Resume: {selected_candidate}")
+            # Corrected this line to include unsafe_allow_html=True
             st.markdown(f'<div style="height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">{highlighted_resume}</div>', unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- ADDED BACK: Email Invitation Section ---
+    st.header("📧 Send Interview Invitations")
+    st.markdown("Select qualified candidates (score > 50%) to send an invitation.")
+
+    # Filter for qualified candidates
+    qualified_candidates = st.session_state.results_df[st.session_state.results_df['Score (%)'] > 50]
+
+    if not qualified_candidates.empty:
+        # Create a dictionary for easy lookup: Filename -> Email
+        candidate_email_options = qualified_candidates.set_index('Filename')['Email'].to_dict()
+        
+        selected_filename_for_email = st.selectbox(
+            "Choose a candidate to email:",
+            options=candidate_email_options.keys()
+        )
+        
+        if st.button("Send Invitation Email", type="primary"):
+            recipient_email = candidate_email_options[selected_filename_for_email]
+            if recipient_email:
+                with st.spinner(f"Sending email to {selected_filename_for_email}..."):
+                    candidate_name = selected_filename_for_email.split('.')[0].replace('_', ' ').title()
+                    job_title = "Data Scientist" # You can make this dynamic later
+                    
+                    if send_invitation_email(recipient_email, candidate_name, job_title):
+                        st.success(f"✅ Invitation successfully sent to {recipient_email}!")
+            else:
+                st.error(f"❌ Could not find an email address in the resume for {selected_filename_for_email}.")
+    else:
+        st.info("No candidates scored above 60% to send an invitation.")
+
 else:
     st.info("Please provide a job description and upload resumes in the sidebar to begin analysis.")
