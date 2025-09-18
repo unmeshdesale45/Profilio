@@ -6,7 +6,7 @@ import nltk
 
 # --- NLTK Data Download ---
 # This function checks if the NLTK data is present and downloads it if not.
-@st.cache_resource
+
 def download_nltk_data():
     try:
         nltk.data.find('tokenizers/punkt')
