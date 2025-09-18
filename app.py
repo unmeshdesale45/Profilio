@@ -3,35 +3,27 @@ import pandas as pd
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 import nltk
-import ssl
 
 # --- NLTK Data Download ---
-# This function checks if the NLTK data is present and downloads it if not.
+# This simplified function directly downloads the necessary NLTK data,
+# which is the most reliable method for Streamlit Cloud.
 def download_nltk_data():
     try:
-        _create_unverified_https_context = ssl._create_unverified_context
-    except AttributeError:
-        pass
-    else:
-        ssl._create_default_https_context = _create_unverified_https_context
-
-    try:
         nltk.data.find('tokenizers/punkt')
-    except nltk.downloader.DownloadError:
+    except (OSError, LookupError):
         nltk.download('punkt')
     try:
         nltk.data.find('corpora/stopwords')
-    except nltk.downloader.DownloadError:
+    except (OSError, LookupError):
         nltk.download('stopwords')
 
+# Run the download function at the start of the script
 download_nltk_data()
 
-# Import your existing utility and matcher functions
-from utils import extract_text_from_pdf, extract_text_from_docx
-from matcher import calculate_similarity
 
-# --- NEW: Import the new functions for email functionality ---
-from utils import extract_email_from_text, send_invitation_email
+# Import utility and matcher functions from other project files
+from utils import extract_text_from_pdf, extract_text_from_docx, extract_email_from_text, send_invitation_email
+from matcher import calculate_similarity
 
 
 # --- HELPER FUNCTIONS for Side-by-Side View ---
@@ -49,6 +41,7 @@ def get_common_keywords(job_desc_text, resume_text):
     vec1 = vectorizer.transform([job_desc_text]).toarray()
     vec2 = vectorizer.transform([resume_text]).toarray()
     
+    # Find indices where both vectors have a non-zero value
     common_indices = (vec1 > 0) & (vec2 > 0)
     common_words = feature_names[common_indices[0]]
     
@@ -96,7 +89,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-# --- MODIFIED: Analysis loop in app.py to include email extraction ---
+# --- Analysis loop to process resumes ---
 if analyze_button and job_description and uploaded_resumes:
     with st.spinner("Analyzing all resumes... This may take a moment."):
         results = []
@@ -109,14 +102,12 @@ if analyze_button and job_description and uploaded_resumes:
                     resume_text = extract_text_from_docx(resume_file)
                 
                 similarity_score = calculate_similarity(resume_text, job_description)
-                
-                # NEW: Extract email
                 email = extract_email_from_text(resume_text)
                 
                 results.append({
                     "Filename": resume_file.name,
                     "Score (%)": f"{similarity_score:.2f}",
-                    "Email": email, # Add the extracted email to results
+                    "Email": email,
                     "Full Resume Text": resume_text
                 })
             except Exception as e:
@@ -128,12 +119,11 @@ if analyze_button and job_description and uploaded_resumes:
         
         st.session_state.results_df = results_df
 
-# --- MODIFIED: Display Results and Add Emailing Feature ---
+# --- Display Results and Features ---
 if st.session_state.results_df is not None:
     st.header("📈 Analysis Results")
     st.markdown("Here are the resumes ranked by their match score.")
     
-    # Display the ranked list, now including the Email column
     st.dataframe(
         st.session_state.results_df[['Filename', 'Score (%)', 'Email']],
         use_container_width=True,
@@ -163,15 +153,12 @@ if st.session_state.results_df is not None:
 
     st.divider()
 
-    # --- ADDED BACK: Email Invitation Section ---
     st.header("📧 Send Interview Invitations")
     st.markdown("Select qualified candidates (score > 50%) to send an invitation.")
 
-    # Filter for qualified candidates
     qualified_candidates = st.session_state.results_df[st.session_state.results_df['Score (%)'] > 50]
 
     if not qualified_candidates.empty:
-        # Create a dictionary for easy lookup: Filename -> Email
         candidate_email_options = qualified_candidates.set_index('Filename')['Email'].to_dict()
         
         selected_filename_for_email = st.selectbox(
@@ -180,18 +167,18 @@ if st.session_state.results_df is not None:
         )
         
         if st.button("Send Invitation Email", type="primary"):
-            recipient_email = candidate_email_options[selected_filename_for_email]
+            recipient_email = candidate_email_options.get(selected_filename_for_email)
             if recipient_email:
                 with st.spinner(f"Sending email to {selected_filename_for_email}..."):
                     candidate_name = selected_filename_for_email.split('.')[0].replace('_', ' ').title()
-                    job_title = "Data Scientist" # You can make this dynamic later
+                    job_title = "Data Scientist" # This can be made dynamic in a future version
                     
                     if send_invitation_email(recipient_email, candidate_name, job_title):
                         st.success(f"✅ Invitation successfully sent to {recipient_email}!")
             else:
                 st.error(f"❌ Could not find an email address in the resume for {selected_filename_for_email}.")
     else:
-        st.info("No candidates scored above 60% to send an invitation.")
+        st.info("No candidates scored above 50% to send an invitation.")
 
 else:
     st.info("Please provide a job description and upload resumes in the sidebar to begin analysis.")
