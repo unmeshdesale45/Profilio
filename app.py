@@ -2,6 +2,22 @@ import streamlit as st
 import pandas as pd
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
+import nltk
+
+# --- NLTK Data Download ---
+# This function checks if the NLTK data is present and downloads it if not.
+@st.cache_resource
+def download_nltk_data():
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except nltk.downloader.DownloadError:
+        nltk.download('punkt')
+    try:
+        nltk.data.find('corpora/stopwords')
+    except nltk.downloader.DownloadError:
+        nltk.download('stopwords')
+
+download_nltk_data()
 
 # Import your existing utility and matcher functions
 from utils import extract_text_from_pdf, extract_text_from_docx
@@ -136,7 +152,6 @@ if st.session_state.results_df is not None:
             st.markdown(f'<div style="height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">{highlighted_jd}</div>', unsafe_allow_html=True)
         with col2:
             st.subheader(f"Resume: {selected_candidate}")
-            # Corrected this line to include unsafe_allow_html=True
             st.markdown(f'<div style="height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">{highlighted_resume}</div>', unsafe_allow_html=True)
 
     st.divider()
